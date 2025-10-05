@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, CandlestickChart, History, BrainCircuit, Settings as SettingsIcon, FileText, Play, Square, Loader, Server, AlertTriangle } from 'lucide-react';
 
 // --- API Configuration ---
-const API_BASE_URL = 'http://127.0.0.1:5001';
+const API_BASE_URL = 'https://aitradepro-api.onrender.com/';
 
 // --- UI Components ---
 const Card = ({ children, className = '' }) => (
