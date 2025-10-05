@@ -1,7 +1,7 @@
-import React from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadialBarChart, RadialBar, Legend, BarChart, Bar, Line, ComposedChart, ReferenceDot } from 'recharts';
+import React, { useState, useEffect } from 'react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadialBarChart, RadialBar, Legend, ComposedChart, ReferenceDot } from 'recharts';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, CandlestickChart, History, BrainCircuit, Settings, FileText, Sun, Moon, Bell, ArrowUp, ArrowDown, ChevronDown, Search, ArrowRight, ChevronsUpDown } from 'lucide-react';
+import { LayoutDashboard, CandlestickChart, History, BrainCircuit, Settings as SettingsIcon, FileText, Sun, Moon, Bell, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
 
 // --- MOCK DATA & SIMULATION --- //
 // In a real application, this data would come from your backend APIs.
@@ -84,14 +84,14 @@ const ToastNotification = ({ message, type, isVisible }) => (
 // --- MAIN SECTIONS / COMPONENTS --- //
 
 const Dashboard = () => {
-    const [stats, setStats] = React.useState({
+    const [stats, setStats] = useState({
         totalPL: 23780.50,
         winRate: 78,
         activeTrades: 4,
         avgReturn: 12.50,
     });
 
-    React.useEffect(() => {
+    useEffect(() => {
         const interval = setInterval(() => {
             setStats(prev => ({
                 ...prev,
@@ -165,9 +165,9 @@ const Dashboard = () => {
 };
 
 const LiveTrades = () => {
-    const [marketData, setMarketData] = React.useState(initialMarketData);
+    const [marketData, setMarketData] = useState(initialMarketData);
 
-    React.useEffect(() => {
+    useEffect(() => {
         const interval = setInterval(() => {
             setMarketData(prevData => {
                 const lastPoint = prevData[prevData.length - 1];
@@ -201,14 +201,10 @@ const LiveTrades = () => {
 
                         {marketData.map((entry, index) => {
                             if (entry.signals?.type === 'buy') {
-                                return <ReferenceDot key={index} x={entry.time} y={entry.price} r={8} fill="#22c55e" stroke="white" strokeWidth={2}>
-                                    <ArrowUp className="text-white"/>
-                                </ReferenceDot>;
+                                return <ReferenceDot key={index} x={entry.time} y={entry.price} r={8} fill="#22c55e" stroke="white" strokeWidth={2} />;
                             }
                             if (entry.signals?.type === 'sell') {
-                                return <ReferenceDot key={index} x={entry.time} y={entry.price} r={8} fill="#ef4444" stroke="white" strokeWidth={2} >
-                                    <ArrowDown className="text-white"/>
-                                </ReferenceDot>;
+                                return <ReferenceDot key={index} x={entry.time} y={entry.price} r={8} fill="#ef4444" stroke="white" strokeWidth={2} />;
                             }
                             return null;
                         })}
@@ -220,7 +216,7 @@ const LiveTrades = () => {
 };
 
 const TradeHistory = () => {
-    const [trades, setTrades] = React.useState(initialTradeHistory);
+    const [trades, setTrades] = useState(initialTradeHistory);
     // Add state for sorting, pagination etc. here
     return (
         <div className="p-6">
@@ -291,9 +287,9 @@ const AIInsights = () => (
 );
 
 const Settings = () => {
-    const [botStatus, setBotStatus] = React.useState(true);
-    const [tradingMode, setTradingMode] = React.useState('moderate');
-    const [riskLevel, setRiskLevel] = React.useState(2);
+    const [botStatus, setBotStatus] = useState(true);
+    const [tradingMode, setTradingMode] = useState('moderate');
+    const [riskLevel, setRiskLevel] = useState(2);
 
     return (
         <div className="p-6 space-y-6">
@@ -372,17 +368,17 @@ const NavItem = ({ icon: Icon, text, active, onClick }) => (
 
 // --- MAIN APP COMPONENT --- //
 const App = () => {
-    const [activePage, setActivePage] = React.useState('Dashboard');
-    const [isDarkMode, setIsDarkMode] = React.useState(true);
-    const [toast, setToast] = React.useState({ isVisible: false, message: '', type: '' });
+    const [activePage, setActivePage] = useState('Dashboard');
+    const [isDarkMode, setIsDarkMode] = useState(true);
+    const [toast, setToast] = useState({ isVisible: false, message: '', type: '' });
 
-    React.useEffect(() => {
+    useEffect(() => {
         const html = document.querySelector('html');
         if (isDarkMode) html.classList.add('dark');
         else html.classList.remove('dark');
     }, [isDarkMode]);
 
-    React.useEffect(() => {
+    useEffect(() => {
          const interval = setInterval(() => {
             setToast({ isVisible: true, message: 'New AI Trade: BUY NVDA Call', type: 'success' });
             setTimeout(() => setToast(prev => ({ ...prev, isVisible: false })), 4000);
@@ -408,7 +404,7 @@ const App = () => {
         { name: 'Trade History', icon: History },
         { name: 'AI Insights', icon: BrainCircuit },
         { name: 'Analytics', icon: FileText },
-        { name: 'Settings', icon: Settings },
+        { name: 'Settings', icon: SettingsIcon },
     ];
 
     return (
@@ -461,4 +457,3 @@ const App = () => {
 };
 
 export default App;
-
