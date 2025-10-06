@@ -20,9 +20,26 @@ threadpoolctl==3.5.0
 #Trading and Finance
 alpaca-py==0.42.2
 yfinance==0.2.40
-
 pandas-ta==0.3.14b
 
-ch.org/whl/ctransformers==4.42.3 
-tokenizers==0.19.1 
+#AI and NLP
+transformers==4.42.3
+tokenizers==0.19.1
 sentencepiece==0.2.0
+torch==2.2.1 --index-url https://download.pytorch.org/whl/cpu
+huggingface-hub==0.23.4
+safetensors==0.4.3
+regex==2024.5.15
+
+#Other Utilities & Sub-dependencies
+requests==2.32.3
+urllib3==2.2.2
+pytz==2024.1
+lxml==5.2.2
+appdirs==1.4.4
+multitasking==0.0.11
+peewee==3.17.5
+python-dateutil==2.9.0.post0
+six==1.16.0
+pyparsing==3.1.2
+packaging==24.1
