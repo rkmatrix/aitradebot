@@ -23,7 +23,7 @@ alpaca-py==0.42.2
 yfinance==0.2.40
 
 #CRITICAL FIX: Install pandas-ta directly from GitHub source to bypass index issues
-pandas-ta @ git+https://www.google.com/search?q=https://github.com/twopirllc/pandas-ta.git
+pandas-ta
 
 #AI and NLP
 transformers==4.42.3
