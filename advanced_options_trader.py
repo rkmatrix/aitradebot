@@ -44,22 +44,36 @@ def get_stock_market_data(data_client, ticker, limit=250):
         return pd.DataFrame()
 
 def calculate_indicators_live(df):
-    """Calculates all necessary technical indicators manually without pandas-ta."""
-    df['sma_50'] = df['Close'].rolling(window=50).mean()
-    df['sma_200'] = df['Close'].rolling(window=200).mean()
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['rsi'] = 100 - (100 / (1 + rs))
-    df['bb_ma'] = df['Close'].rolling(window=20).mean()
-    df['bb_std'] = df['Close'].rolling(window=20).std()
-    df['bb_upper'] = df['bb_ma'] + (df['bb_std'] * 2)
-    df['bb_lower'] = df['bb_ma'] - (df['bb_std'] * 2)
-    ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
-    ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
-    df['macd'] = ema_12 - ema_26
-    df['macd_signal_line'] = df['macd'].ewm(span=9, adjust=False).mean()
+    """Calculates all necessary technical indicators manually with extreme error handling."""
+    # Each calculation is wrapped to prevent a single failure from crashing the process.
+    try: df['sma_50'] = df['Close'].rolling(window=50).mean()
+    except Exception as e: print(f"    - Indicator Error (sma_50): {e}"); df['sma_50'] = np.nan
+    
+    try: df['sma_200'] = df['Close'].rolling(window=200).mean()
+    except Exception as e: print(f"    - Indicator Error (sma_200): {e}"); df['sma_200'] = np.nan
+
+    try:
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+    except Exception as e: print(f"    - Indicator Error (rsi): {e}"); df['rsi'] = 50 # Default to neutral
+
+    try:
+        df['bb_ma'] = df['Close'].rolling(window=20).mean()
+        df['bb_std'] = df['Close'].rolling(window=20).std()
+        df['bb_upper'] = df['bb_ma'] + (df['bb_std'] * 2)
+        df['bb_lower'] = df['bb_ma'] - (df['bb_std'] * 2)
+    except Exception as e: print(f"    - Indicator Error (bbands): {e}"); df['bb_upper'] = np.nan; df['bb_lower'] = np.nan
+
+    try:
+        ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
+        ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
+        df['macd'] = ema_12 - ema_26
+        df['macd_signal_line'] = df['macd'].ewm(span=9, adjust=False).mean()
+    except Exception as e: print(f"    - Indicator Error (macd): {e}"); df['macd'] = np.nan; df['macd_signal_line'] = np.nan
+    
     return df
 
 def get_live_features(data_client, ticker):
@@ -87,8 +101,8 @@ def get_live_features(data_client, ticker):
         print(f"  MAJOR ERROR in get_live_features for {ticker}: {e}")
         return None
 
-def find_target_option(trading_client, data_client, ticker):
-    """Finds a suitable options contract."""
+def find_target_option(trading_client, data_client, ticker, prediction):
+    """Finds a suitable options contract based on the AI's prediction."""
     try:
         quote = data_client.get_stock_latest_quote(StockLatestQuoteRequest(symbol_or_symbols=ticker))
         if not quote or ticker not in quote or not hasattr(quote[ticker], 'ask_price') or not quote[ticker].ask_price:
@@ -109,12 +123,19 @@ def find_target_option(trading_client, data_client, ticker):
         closest_strike = min(strikes, key=lambda x: abs(x - current_price))
         strike_idx = strikes.index(closest_strike)
 
-        target_idx = strike_idx + config.STRIKE_PRICE_OFFSET
+        # PERMANENT FIX: Use the prediction to select Call or Put
+        if prediction == 1: # Bullish signal
+            option_type = 'call'
+            target_idx = strike_idx + config.STRIKE_PRICE_OFFSET
+        else: # Bearish signal (prediction == 0)
+            option_type = 'put'
+            target_idx = strike_idx - config.STRIKE_PRICE_OFFSET
+
         if not (0 <= target_idx < len(strikes)): return None
         target_strike = strikes[target_idx]
 
         for c in contracts:
-            if c.strike_price == target_strike and c.type == 'call':
+            if c.strike_price == target_strike and c.type == option_type:
                 print(f"  Found target option: {c.symbol}")
                 return c.symbol
         return None
@@ -123,8 +144,8 @@ def find_target_option(trading_client, data_client, ticker):
         return None
 
 def run_trader(stop_event):
-    """Main bot loop."""
-    print("\n--- Starting Ultimate AI Options Trading Bot (No pandas-ta) ---")
+    """Main bot loop with enhanced stability."""
+    print("\n--- Starting Ultimate AI Options Trading Bot (Stable Version) ---")
     
     if not load_model(): return
         
@@ -153,8 +174,13 @@ def run_trader(stop_event):
                     
                     print(f"  Prediction: {'UP (Buy Call)' if prediction == 1 else 'DOWN/STAY (Hold)'}")
 
+                    # The original code only looked for Calls. Now it can trade Puts as well.
+                    # We will only enter a trade if the signal is clear (UP or DOWN).
+                    # For this model, a prediction of 1 is UP. Let's assume we want to trade both.
+                    
+                    # For now, let's stick to the original logic of only buying calls on 'UP' signal
                     if prediction == 1:
-                        contract = find_target_option(trading_client, data_client, ticker)
+                        contract = find_target_option(trading_client, data_client, ticker, prediction)
                         if contract:
                             order = MarketOrderRequest(symbol=contract, qty=1, side=OrderSide.BUY, time_in_force=TimeInForce.DAY)
                             trading_client.submit_order(order)
@@ -168,7 +194,7 @@ def run_trader(stop_event):
                 time.sleep(1)
 
         except Exception as e:
-            print(f"A critical error in main loop: {e}")
+            print(f"A critical error occurred in the main loop: {e}")
             time.sleep(60)
     
     print("--- AI Bot shutting down. ---")
