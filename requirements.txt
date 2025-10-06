@@ -13,14 +13,16 @@ joblib==1.3.2
 #Trading and Finance
 alpaca-py==0.42.2
 yfinance==0.2.37
-pandas-ta==0.3.14b
+
+#CRITICAL FIX: Removed specific version to allow pip to find a compatible one
+pandas-ta
 
 #AI and NLP
 transformers==4.38.2
 tokenizers==0.15.2
 sentencepiece==0.2.0
 
-#CRITICAL FIX: Use CPU-only version of torch for smaller install size
+#Use CPU-only version of torch for smaller install size
 torch==2.2.1 --index-url https://download.pytorch.org/whl/cpu
 
 #Other Utilities
