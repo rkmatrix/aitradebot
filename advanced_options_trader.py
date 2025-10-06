@@ -19,11 +19,10 @@ DAYS_TO_EXPIRATION_MAX = 45
 STRIKE_PRICE_OFFSET = 3
 POSITION_CLOSE_DTE = 5
 
-# This will be loaded by the run_trader function
 ultimate_model = None
 
 def load_model():
-    """Helper function to load the model when the trader starts."""
+    """Loads the AI model into the global scope."""
     global ultimate_model
     if ultimate_model is None:
         try:
@@ -31,12 +30,12 @@ def load_model():
             print("Successfully loaded Ultimate AI Model.")
             return True
         except FileNotFoundError:
-            print(f"Error: Model file '{config.MODEL_FILENAME}' not found. Please run 'main.py --action setup' first.")
+            print(f"Error: Model file '{config.MODEL_FILENAME}' not found. Setup must be run first.")
             return False
     return True
 
 def get_stock_market_data(data_client, ticker, limit=250):
-    """Fetches historical stock data from Alpaca."""
+    """Fetches historical stock data from Alpaca with error handling."""
     try:
         request_params = StockBarsRequest(symbol_or_symbols=[ticker], timeframe=TimeFrame.Day, limit=limit)
         bars = data_client.get_stock_bars(request_params).df
@@ -49,61 +48,48 @@ def get_stock_market_data(data_client, ticker, limit=250):
         return pd.DataFrame()
 
 def get_live_features(data_client, ticker):
-    """Computes advanced features for live data with robust error handling."""
+    """Computes advanced features with extreme defensive error handling."""
     try:
         df = get_stock_market_data(data_client, ticker)
         spy_df = get_stock_market_data(data_client, config.MARKET_REGIME_TICKER)
         if df.empty or spy_df.empty or len(df) < 201 or len(spy_df) < 201:
-            print("  Not enough historical data to calculate all features.")
             return None
 
-        # --- Generate Strategy Signals (Defensive Version) ---
-        for length in [50, 200]:
-            df[f'sma_{length}'] = ta.sma(df['Close'], length)
-        df['ma_crossover_signal'] = (df['sma_50'] > df['sma_200']).astype(int).replace(0, -1)
+        # Calculate all indicators within individual try-except blocks
+        try: df['ma_crossover_signal'] = (ta.sma(df['Close'], 50) > ta.sma(df['Close'], 200)).astype(int).replace(0, -1)
+        except Exception: df['ma_crossover_signal'] = 0
+
+        try:
+            rsi = ta.rsi(df['Close']); df['rsi_signal'] = 0
+            if rsi is not None: df.loc[rsi < 30, 'rsi_signal'] = 1; df.loc[rsi > 70, 'rsi_signal'] = -1
+        except Exception: df['rsi_signal'] = 0
+
+        try:
+            bbands = ta.bbands(df['Close']); df['bb_signal'] = 0
+            if bbands is not None and not bbands.empty:
+                lower = next((c for c in bbands.columns if 'bbl' in c.lower()), None)
+                upper = next((c for c in bbands.columns if 'bbu' in c.lower()), None)
+                if lower and upper: df.loc[df['Close'] < bbands[lower], 'bb_signal'] = 1; df.loc[df['Close'] > bbands[upper], 'bb_signal'] = -1
+        except Exception: df['bb_signal'] = 0
         
-        rsi = ta.rsi(df['Close'])
-        df['rsi_signal'] = 0
-        if rsi is not None and not rsi.empty:
-            df.loc[rsi < 30, 'rsi_signal'] = 1
-            df.loc[rsi > 70, 'rsi_signal'] = -1
+        try:
+            macd = ta.macd(df['Close']); df['macd_signal'] = 0
+            if macd is not None and not macd.empty:
+                macd_line = next((c for c in macd.columns if 'macd_' in c.lower()), None)
+                signal_line = next((c for c in macd.columns if 'macds' in c.lower()), None)
+                if macd_line and signal_line: df['macd_signal'] = (macd[macd_line] > macd[signal_line]).astype(int).replace(0, -1)
+        except Exception: df['macd_signal'] = 0
         
-        bbands = ta.bbands(df['Close'])
-        if bbands is not None and not bbands.empty:
-            lower_col = next((c for c in bbands.columns if 'bbl' in c.lower()), None)
-            upper_col = next((c for c in bbands.columns if 'bbu' in c.lower()), None)
-            if lower_col and upper_col:
-                df['bb_signal'] = 0
-                df.loc[df['Close'] < bbands[lower_col], 'bb_signal'] = 1
-                df.loc[df['Close'] > bbands[upper_col], 'bb_signal'] = -1
-            else:
-                df['bb_signal'] = 0
-        else:
-            df['bb_signal'] = 0
-            
-        macd = ta.macd(df['Close'])
-        if macd is not None and not macd.empty:
-            macd_col = next((c for c in macd.columns if 'macd_' in c.lower()), None)
-            signal_col = next((c for c in macd.columns if 'macds' in c.lower()), None)
-            if macd_col and signal_col:
-                df['macd_signal'] = (macd[macd_col] > macd[signal_col]).astype(int).replace(0, -1)
-            else:
-                df['macd_signal'] = 0
-        else:
-            df['macd_signal'] = 0
-            
-        # --- Market Regime ---
-        spy_df['sma_200'] = ta.sma(spy_df['Close'], 200)
-        last_spy_close = spy_df['Close'].iloc[-1]
-        last_spy_sma = spy_df['sma_200'].iloc[-1]
-        df['market_regime'] = 1 if last_spy_close > last_spy_sma else -1
+        try:
+            spy_df['sma_200'] = ta.sma(spy_df['Close'], 200)
+            df['market_regime'] = 1 if spy_df['Close'].iloc[-1] > spy_df['sma_200'].iloc[-1] else -1
+        except Exception: df['market_regime'] = 0
         
         df.dropna(inplace=True)
         return df.iloc[-1] if not df.empty else None
     except Exception as e:
-        print(f"  CRITICAL ERROR in get_live_features for {ticker}: {e}")
+        print(f"  MAJOR ERROR in get_live_features for {ticker}: {e}")
         return None
-
 
 def find_target_option(trading_client, data_client, ticker, prediction):
     """Finds a suitable options contract with defensive checks."""
@@ -114,7 +100,6 @@ def find_target_option(trading_client, data_client, ticker, prediction):
             return None
         current_price = quote[ticker].ask_price
         
-        # CRITICAL FIX: Define 'today' before using it.
         today = datetime.now().date()
         min_exp = today + timedelta(days=DAYS_TO_EXPIRATION_MIN)
         max_exp = today + timedelta(days=DAYS_TO_EXPIRATION_MAX)
@@ -145,8 +130,8 @@ def find_target_option(trading_client, data_client, ticker, prediction):
         print(f"  An error occurred while finding an option for {ticker}: {e}")
         return None
 
-def run_trader():
-    """Main function to run the live options trading bot loop."""
+def run_trader(stop_event):
+    """Main bot loop, now accepts a stop_event to allow graceful shutdown."""
     print("\n--- Starting Ultimate AI Options Trading Bot ---")
     
     if not load_model(): return
@@ -154,18 +139,16 @@ def run_trader():
     trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=True)
     data_client = StockHistoricalDataClient(config.API_KEY, config.SECRET_KEY)
     
-    while True:
+    while not stop_event.is_set():
         try:
             print(f"\n[{time.ctime()}] Running AI Options trading cycle...")
-            positions = trading_client.get_all_positions()
             
-            # (Position management logic remains the same)
-
-            # --- Look for New Entries ---
+            # --- Analysis Loop ---
             for ticker in config.TICKERS:
+                if stop_event.is_set(): break
                 try:
                     print(f"\n- Analyzing {ticker} for new entry")
-                    # (Logic for checking existing positions remains the same)
+                    # (Rest of the analysis logic is the same)
                     
                     features = get_live_features(data_client, ticker)
                     if features is None:
@@ -190,15 +173,21 @@ def run_trader():
                 except Exception as e:
                     print(f"  An unhandled error occurred while analyzing {ticker}: {e}")
 
+            if stop_event.is_set(): break
+
             print("\nCycle complete. Waiting for 15 minutes...")
-            time.sleep(60 * 15)
-        except KeyboardInterrupt:
-            print("\nBot stopped by user.")
-            break
+            # Wait in smaller chunks to be responsive to the stop signal
+            for _ in range(15 * 60):
+                if stop_event.is_set(): break
+                time.sleep(1)
+
         except Exception as e:
             print(f"A critical error occurred in the main loop: {e}")
             time.sleep(60)
+    
+    print("--- AI Trading Bot has received stop signal and is shutting down. ---")
 
 if __name__ == '__main__':
-    run_trader()
+    # This part is for local testing only
+    run_trader(threading.Event())
 

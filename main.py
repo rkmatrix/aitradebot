@@ -1,4 +1,5 @@
 import argparse
+import threading
 import data_collection
 import advanced_feature_engineering
 import meta_model_trainer
@@ -9,10 +10,8 @@ def run_full_setup():
     print("\n--- Running Full Setup: Data -> Features -> Model ---")
     data_collection.run_collection()
     advanced_feature_engineering.run_feature_engineering()
-    # CRITICAL FIX: Call the correct function name 'run_training'
     meta_model_trainer.run_training()
     print("\n--- Full Setup is Complete! You are now ready to trade. ---")
-    print("Run 'python main.py --action trade_options' to start the bot.")
 
 def main():
     """Main function to parse arguments and run the specified action."""
@@ -22,9 +21,7 @@ def main():
         type=str,
         required=True,
         choices=['setup', 'trade_options', 'retrain'],
-        help="The action to perform: 'setup' (run full data pipeline and training), "
-             "'trade_options' (run the live options trading bot), "
-             "'retrain' (alias for setup)."
+        help="The action to perform."
     )
     
     args = parser.parse_args()
@@ -32,10 +29,17 @@ def main():
     if args.action == 'setup' or args.action == 'retrain':
         run_full_setup()
     elif args.action == 'trade_options':
-        advanced_options_trader.run_trader()
+        # This is now primarily handled by the API server, 
+        # but this allows for local, standalone testing.
+        print("Starting trader in standalone mode...")
+        stop_event = threading.Event()
+        try:
+            advanced_options_trader.run_trader(stop_event)
+        except KeyboardInterrupt:
+            print("\nStandalone trader stopped by user.")
+            stop_event.set()
     else:
         print(f"Unknown action: {args.action}")
-        parser.print_help()
 
 if __name__ == "__main__":
     main()
