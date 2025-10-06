@@ -15,7 +15,7 @@ alpaca-py==0.42.2
 yfinance==0.2.37
 
 #CRITICAL FIX: Removed specific version to allow pip to find a compatible one
-pandas-ta
+pandas-ta==0.3.14b0
 
 #AI and NLP
 transformers==4.38.2
