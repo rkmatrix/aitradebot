@@ -51,43 +51,61 @@ def get_stock_market_data(data_client, ticker, limit=250):
 
 def get_live_features(data_client, ticker):
     """Fetches live data and computes the advanced features the model was trained on."""
-    df = get_stock_market_data(data_client, ticker)
-    spy_df = get_stock_market_data(data_client, config.MARKET_REGIME_TICKER)
-    if df.empty or spy_df.empty or len(df) < 200 or len(spy_df) < 200:
-        return None
+    try:
+        df = get_stock_market_data(data_client, ticker)
+        spy_df = get_stock_market_data(data_client, config.MARKET_REGIME_TICKER)
+        if df.empty or spy_df.empty or len(df) < 200 or len(spy_df) < 200:
+            print("  Not enough historical data to calculate all features.")
+            return None
 
-    # --- Generate Strategy Signals ---
-    df['ma_crossover_signal'] = (ta.sma(df['Close'], 50) > ta.sma(df['Close'], 200)).astype(int).replace(0, -1)
-    rsi = ta.rsi(df['Close'])
-    df['rsi_signal'] = 0; df.loc[rsi < 30, 'rsi_signal'] = 1; df.loc[rsi > 70, 'rsi_signal'] = -1
-    bbands = ta.bbands(df['Close'])
-    lower_band_col = next((col for col in bbands.columns if 'bbl' in col.lower()), None)
-    upper_band_col = next((col for col in bbands.columns if 'bbu' in col.lower()), None)
-    if lower_band_col and upper_band_col:
-        df['bb_signal'] = 0
-        df.loc[df['Close'] < bbands[lower_band_col], 'bb_signal'] = 1
-        df.loc[df['Close'] > bbands[upper_band_col], 'bb_signal'] = -1
-    else:
-        df['bb_signal'] = 0
-    macd = ta.macd(df['Close'])
-    macd_line_col = next((col for col in macd.columns if 'macd_' in col.lower()), None)
-    signal_line_col = next((col for col in macd.columns if 'macds' in col.lower()), None)
-    if macd_line_col and signal_line_col:
-        df['macd_signal'] = (macd[macd_line_col] > macd[signal_line_col]).astype(int).replace(0, -1)
-    else:
-        df['macd_signal'] = 0
+        # --- Generate Strategy Signals (More Robustly) ---
+        df['ma_crossover_signal'] = (ta.sma(df['Close'], 50) > ta.sma(df['Close'], 200)).astype(int).replace(0, -1)
         
-    # --- Market Regime Detection ---
-    spy_df['sma_200'] = ta.sma(spy_df['Close'], 200)
-    last_valid_spy_close = spy_df['Close'].iloc[-1]
-    last_valid_spy_sma = spy_df['sma_200'].iloc[-1]
-    if pd.notna(last_valid_spy_close) and pd.notna(last_valid_spy_sma):
-        df['market_regime'] = 1 if last_valid_spy_close > last_valid_spy_sma else -1
-    else:
-        df['market_regime'] = 0
-    
-    # Return the last row, which contains the latest calculated features
-    return df.iloc[-1]
+        rsi = ta.rsi(df['Close'])
+        df['rsi_signal'] = 0
+        if rsi is not None and not rsi.empty:
+            df.loc[rsi < 30, 'rsi_signal'] = 1
+            df.loc[rsi > 70, 'rsi_signal'] = -1
+        
+        bbands = ta.bbands(df['Close'])
+        if bbands is not None and not bbands.empty:
+            lower_band_col = next((col for col in bbands.columns if 'bbl' in col.lower()), None)
+            upper_band_col = next((col for col in bbands.columns if 'bbu' in col.lower()), None)
+            if lower_band_col and upper_band_col:
+                df['bb_signal'] = 0
+                df.loc[df['Close'] < bbands[lower_band_col], 'bb_signal'] = 1
+                df.loc[df['Close'] > bbands[upper_band_col], 'bb_signal'] = -1
+            else:
+                df['bb_signal'] = 0
+        else:
+            df['bb_signal'] = 0
+            
+        macd = ta.macd(df['Close'])
+        if macd is not None and not macd.empty:
+            macd_line_col = next((col for col in macd.columns if 'macd_' in col.lower()), None)
+            signal_line_col = next((col for col in macd.columns if 'macds' in col.lower()), None)
+            if macd_line_col and signal_line_col:
+                df['macd_signal'] = (macd[macd_line_col] > macd[signal_line_col]).astype(int).replace(0, -1)
+            else:
+                df['macd_signal'] = 0
+        else:
+            df['macd_signal'] = 0
+            
+        # --- Market Regime Detection ---
+        spy_df['sma_200'] = ta.sma(spy_df['Close'], 200)
+        last_spy_close = spy_df['Close'].iloc[-1] if not spy_df['Close'].empty else None
+        last_spy_sma = spy_df['sma_200'].iloc[-1] if not spy_df['sma_200'].empty else None
+
+        if pd.notna(last_spy_close) and pd.notna(last_spy_sma):
+            df['market_regime'] = 1 if last_spy_close > last_spy_sma else -1
+        else:
+            df['market_regime'] = 0
+        
+        # Return the last row if it's not empty
+        return df.iloc[-1] if not df.empty else None
+    except Exception as e:
+        print(f"  CRITICAL ERROR in get_live_features for {ticker}: {e}")
+        return None
 
 
 def find_target_option(trading_client, data_client, ticker, prediction):
@@ -95,6 +113,9 @@ def find_target_option(trading_client, data_client, ticker, prediction):
     try:
         quote_req = StockLatestQuoteRequest(symbol_or_symbols=ticker)
         quote = data_client.get_stock_latest_quote(quote_req)
+        if not quote or ticker not in quote or not quote[ticker].ask_price:
+            print(f"  Could not get a valid current price for {ticker}.")
+            return None
         current_price = quote[ticker].ask_price
         
         today = datetime.now().date()
@@ -148,17 +169,22 @@ def run_trader():
             
             # --- Manage Existing Positions ---
             for pos in [p for p in positions if p.asset_class == 'us_option']:
-                underlying_symbol = trading_client.get_asset(pos.symbol).underlying_symbol
-                expiration_date = datetime.strptime(trading_client.get_asset(pos.symbol).expiration_date, '%Y-%m-%d').date()
-                if (expiration_date - datetime.now().date()).days <= POSITION_CLOSE_DTE:
-                    print(f"- Position in {pos.symbol} is too close to expiration. Closing.")
-                    trading_client.close_position(pos.symbol)
+                try:
+                    asset = trading_client.get_asset(pos.symbol)
+                    if asset and asset.expiration_date:
+                        expiration_date = datetime.strptime(asset.expiration_date, '%Y-%m-%d').date()
+                        if (expiration_date - datetime.now().date()).days <= POSITION_CLOSE_DTE:
+                            print(f"- Position in {pos.symbol} is too close to expiration. Closing.")
+                            trading_client.close_position(pos.symbol)
+                except Exception as e:
+                    print(f"  Error managing position {pos.symbol}: {e}")
+
 
             # --- Look for New Entries ---
             positions = trading_client.get_all_positions() 
             for ticker in config.TICKERS:
                  print(f"\n- Analyzing {ticker} for new entry")
-                 if any(trading_client.get_asset(p.symbol).underlying_symbol == ticker for p in positions if p.asset_class == 'us_option'):
+                 if any(hasattr(trading_client.get_asset(p.symbol), 'underlying_symbol') and trading_client.get_asset(p.symbol).underlying_symbol == ticker for p in positions if p.asset_class == 'us_option'):
                      print(f"  Already have a position for {ticker}. Skipping.")
                      continue
 
@@ -167,6 +193,11 @@ def run_trader():
                      print(f"  Could not generate live features for {ticker}. Skipping.")
                      continue
                  
+                 # Ensure all required columns are present before prediction
+                 if not all(col in features.index for col in config.FEATURE_COLUMNS):
+                     print(f"  Feature set for {ticker} is incomplete. Skipping prediction.")
+                     continue
+
                  feature_df = pd.DataFrame([features])[config.FEATURE_COLUMNS]
                  prediction = ultimate_model.predict(feature_df)[0]
                  
