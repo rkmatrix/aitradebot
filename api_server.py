@@ -3,7 +3,7 @@ from flask_cors import CORS
 import subprocess
 import os
 import signal
-import platform # New import to detect the operating system
+import platform 
 import atexit
 
 # --- Configuration ---
@@ -14,6 +14,14 @@ bot_process = {'process': None}
 LOG_FILE = 'bot_log.txt'
 
 # --- API Endpoints ---
+
+@app.route('/', methods=['GET'])
+def health_check():
+    """
+    Root endpoint to satisfy Render's health check.
+    This tells Render that the server is running correctly.
+    """
+    return jsonify({'status': 'ok', 'message': 'AITradePro API is healthy.'})
 
 @app.route('/api/start', methods=['POST'])
 def start_bot():
@@ -26,7 +34,6 @@ def start_bot():
         log_file = open(LOG_FILE, 'w')
         
         # --- Cross-Platform Process Creation ---
-        # This block handles the difference between Windows and Linux/MacOS
         if platform.system() == "Windows":
             creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
             preexec_fn = None
@@ -52,16 +59,14 @@ def stop_bot():
     """Stops the trading bot process, handling OS differences."""
     process = bot_process.get('process')
     if not process or process.poll() is not None:
-        # If the process is not tracked or already stopped, just confirm stopped status
         bot_process['process'] = None
         return jsonify({'status': 'success', 'message': 'Bot is already stopped.'})
 
     print(f"API: Received request to stop the trading bot (PID: {process.pid})...")
     try:
-        # --- Cross-Platform Process Termination ---
         if platform.system() == "Windows":
             process.send_signal(signal.CTRL_BREAK_EVENT)
-        else: # For Linux (like Render) and MacOS
+        else: 
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
         
         process.wait(timeout=5)
@@ -112,8 +117,8 @@ def cleanup_on_exit():
     stop_bot()
 
 if __name__ == '__main__':
+    # This block is for local development only. Gunicorn runs the 'app' object directly.
+    print("Starting Flask server for local development...")
     atexit.register(cleanup_on_exit)
-    # The port is set by Render's environment variable, default to 10000 for local testing if needed
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=5001, debug=False)
 
