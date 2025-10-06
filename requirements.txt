@@ -23,6 +23,6 @@ yfinance==0.2.40orPinning to the exact beta version known to be available for Py
 
 pandas-ta==0.3.14b
 
-ch.org/whl/ctransformers==4.42.3
-tokenizers==0.19.1
+ch.org/whl/ctransformers==4.42.3 
+tokenizers==0.19.1 
 sentencepiece==0.2.0
