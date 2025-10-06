@@ -9,7 +9,7 @@ click==8.1.7
 blinker==1.8.2
 
 #Data and ML Core
-#CRITICAL FIX: Downgrading pandas to resolve pandas-ta incompatibility
+#CRITICAL FIX: Pinning pandas and pandas-ta to known compatible versions
 pandas==2.1.4
 numpy==1.26.4
 scikit-learn==1.4.2
@@ -21,15 +21,12 @@ threadpoolctl==3.5.0
 #Trading and Finance
 alpaca-py==0.42.2
 yfinance==0.2.40
-
-#Let pip resolve the correct version based on the downgraded pandas
-pandas-ta
+pandas-ta==0.3.14b
 
 #AI and NLP
 transformers==4.42.3
 tokenizers==0.19.1
 sentencepiece==0.2.0
-torch==2.2.1 --index-url https://download.pytorch.org/whl/cpu
 huggingface-hub==0.23.4
 safetensors==0.4.3
 regex==2024.5.15
@@ -46,3 +43,6 @@ python-dateutil==2.9.0.post0
 six==1.16.0
 pyparsing==3.1.2
 packaging==24.1
+
+#CRITICAL: Keep torch with its custom index URL at the very end
+torch==2.2.1 --index-url https://download.pytorch.org/whl/cpu
