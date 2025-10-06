@@ -1,3 +1,4 @@
+--- Fully Pinned Dependencies for Production Stability (v2) ---
 #Flask and Server
 Flask==3.0.3
 Flask-Cors==4.0.1
@@ -9,7 +10,8 @@ click==8.1.7
 blinker==1.8.2
 
 #Data and ML Core
-pandas==2.2.2
+#CRITICAL FIX: Downgrading pandas to resolve pandas-ta incompatibility
+pandas==2.1.4
 numpy==1.26.4
 scikit-learn==1.4.2
 xgboost==2.0.3
@@ -20,7 +22,9 @@ threadpoolctl==3.5.0
 #Trading and Finance
 alpaca-py==0.42.2
 yfinance==0.2.40
-pandas-ta==0.3.14b
+
+#Let pip resolve the correct version based on the downgraded pandas
+pandas-ta
 
 #AI and NLP
 transformers==4.42.3
