@@ -64,7 +64,9 @@ def get_live_features(data_client, ticker):
         
         rsi = ta.rsi(df['Close'])
         df['rsi_signal'] = 0
-        if rsi is not None: df.loc[rsi < 30, 'rsi_signal'] = 1; df.loc[rsi > 70, 'rsi_signal'] = -1
+        if rsi is not None and not rsi.empty:
+            df.loc[rsi < 30, 'rsi_signal'] = 1
+            df.loc[rsi > 70, 'rsi_signal'] = -1
         
         bbands = ta.bbands(df['Close'])
         if bbands is not None and not bbands.empty:
@@ -74,8 +76,10 @@ def get_live_features(data_client, ticker):
                 df['bb_signal'] = 0
                 df.loc[df['Close'] < bbands[lower_col], 'bb_signal'] = 1
                 df.loc[df['Close'] > bbands[upper_col], 'bb_signal'] = -1
-            else: df['bb_signal'] = 0
-        else: df['bb_signal'] = 0
+            else:
+                df['bb_signal'] = 0
+        else:
+            df['bb_signal'] = 0
             
         macd = ta.macd(df['Close'])
         if macd is not None and not macd.empty:
@@ -83,8 +87,10 @@ def get_live_features(data_client, ticker):
             signal_col = next((c for c in macd.columns if 'macds' in c.lower()), None)
             if macd_col and signal_col:
                 df['macd_signal'] = (macd[macd_col] > macd[signal_col]).astype(int).replace(0, -1)
-            else: df['macd_signal'] = 0
-        else: df['macd_signal'] = 0
+            else:
+                df['macd_signal'] = 0
+        else:
+            df['macd_signal'] = 0
             
         # --- Market Regime ---
         spy_df['sma_200'] = ta.sma(spy_df['Close'], 200)
@@ -108,7 +114,11 @@ def find_target_option(trading_client, data_client, ticker, prediction):
             return None
         current_price = quote[ticker].ask_price
         
-        today, min_exp, max_exp = datetime.now().date(), today + timedelta(days=DAYS_TO_EXPIRATION_MIN), today + timedelta(days=DAYS_TO_EXPIRATION_MAX)
+        # CRITICAL FIX: Define 'today' before using it.
+        today = datetime.now().date()
+        min_exp = today + timedelta(days=DAYS_TO_EXPIRATION_MIN)
+        max_exp = today + timedelta(days=DAYS_TO_EXPIRATION_MAX)
+        
         chain = trading_client.get_option_chain(ticker, expiration_date_gte=min_exp, expiration_date_lte=max_exp)
         
         if not chain or not chain.get(ticker): return None
