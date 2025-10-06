@@ -71,7 +71,7 @@ def get_live_features(data_client, ticker):
         if bbands is not None and not bbands.empty:
             lower_band_col = next((col for col in bbands.columns if 'bbl' in col.lower()), None)
             upper_band_col = next((col for col in bbands.columns if 'bbu' in col.lower()), None)
-            if lower_band_col and upper_band_col:
+            if lower_band_col and upper_band_col and not df.empty:
                 df['bb_signal'] = 0
                 df.loc[df['Close'] < bbands[lower_band_col], 'bb_signal'] = 1
                 df.loc[df['Close'] > bbands[upper_band_col], 'bb_signal'] = -1
@@ -101,7 +101,6 @@ def get_live_features(data_client, ticker):
         else:
             df['market_regime'] = 0
         
-        # Return the last row if it's not empty
         return df.iloc[-1] if not df.empty else None
     except Exception as e:
         print(f"  CRITICAL ERROR in get_live_features for {ticker}: {e}")
@@ -113,7 +112,7 @@ def find_target_option(trading_client, data_client, ticker, prediction):
     try:
         quote_req = StockLatestQuoteRequest(symbol_or_symbols=ticker)
         quote = data_client.get_stock_latest_quote(quote_req)
-        if not quote or ticker not in quote or not quote[ticker].ask_price:
+        if not quote or ticker not in quote or not hasattr(quote[ticker], 'ask_price') or not quote[ticker].ask_price:
             print(f"  Could not get a valid current price for {ticker}.")
             return None
         current_price = quote[ticker].ask_price
@@ -171,7 +170,7 @@ def run_trader():
             for pos in [p for p in positions if p.asset_class == 'us_option']:
                 try:
                     asset = trading_client.get_asset(pos.symbol)
-                    if asset and asset.expiration_date:
+                    if asset and hasattr(asset, 'expiration_date') and asset.expiration_date:
                         expiration_date = datetime.strptime(asset.expiration_date, '%Y-%m-%d').date()
                         if (expiration_date - datetime.now().date()).days <= POSITION_CLOSE_DTE:
                             print(f"- Position in {pos.symbol} is too close to expiration. Closing.")
@@ -179,12 +178,23 @@ def run_trader():
                 except Exception as e:
                     print(f"  Error managing position {pos.symbol}: {e}")
 
-
             # --- Look for New Entries ---
             positions = trading_client.get_all_positions() 
             for ticker in config.TICKERS:
                  print(f"\n- Analyzing {ticker} for new entry")
-                 if any(hasattr(trading_client.get_asset(p.symbol), 'underlying_symbol') and trading_client.get_asset(p.symbol).underlying_symbol == ticker for p in positions if p.asset_class == 'us_option'):
+                 
+                 has_position = False
+                 for p in positions:
+                     if p.asset_class == 'us_option':
+                         try:
+                             asset = trading_client.get_asset(p.symbol)
+                             if hasattr(asset, 'underlying_symbol') and asset.underlying_symbol == ticker:
+                                 has_position = True
+                                 break
+                         except Exception as e:
+                             print(f"  Could not verify asset for position {p.symbol}: {e}")
+                 
+                 if has_position:
                      print(f"  Already have a position for {ticker}. Skipping.")
                      continue
 
@@ -193,7 +203,6 @@ def run_trader():
                      print(f"  Could not generate live features for {ticker}. Skipping.")
                      continue
                  
-                 # Ensure all required columns are present before prediction
                  if not all(col in features.index for col in config.FEATURE_COLUMNS):
                      print(f"  Feature set for {ticker} is incomplete. Skipping prediction.")
                      continue
@@ -203,7 +212,7 @@ def run_trader():
                  
                  print(f"  Ultimate AI Prediction for {ticker}: {'UP (Buy Call)' if prediction == 1 else 'DOWN/STAY (Hold)'}")
 
-                 if prediction == 1: # Only trade on bullish signals
+                 if prediction == 1:
                      contract = find_target_option(trading_client, data_client, ticker, prediction)
                      if contract:
                          print(f"  Placing order to BUY 1 contract of {contract}")
