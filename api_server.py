@@ -2,14 +2,14 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import subprocess
 import os
+import signal
+import platform # New import to detect the operating system
 import atexit
 
 # --- Configuration ---
 app = Flask(__name__)
-# This enables your React UI to communicate with this server
 CORS(app)
 
-# Use a dictionary to store the bot's process information
 bot_process = {'process': None}
 LOG_FILE = 'bot_log.txt'
 
@@ -17,19 +17,28 @@ LOG_FILE = 'bot_log.txt'
 
 @app.route('/api/start', methods=['POST'])
 def start_bot():
-    """Starts the trading bot as a background process."""
+    """Starts the trading bot as a background process, handling OS differences."""
     if bot_process.get('process') and bot_process['process'].poll() is None:
         return jsonify({'status': 'error', 'message': 'Bot is already running.'}), 400
 
     print("API: Received request to start the trading bot...")
     try:
-        # We redirect the bot's output to a log file
         log_file = open(LOG_FILE, 'w')
-        # Using '-u' for unbuffered python output is crucial for live logs
+        
+        # --- Cross-Platform Process Creation ---
+        # This block handles the difference between Windows and Linux/MacOS
+        if platform.system() == "Windows":
+            creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+            preexec_fn = None
+        else: # For Linux (like Render) and MacOS
+            creation_flags = 0
+            preexec_fn = os.setsid
+
         process = subprocess.Popen(
             ['python', '-u', 'main.py', '--action', 'trade_options'],
             stdout=log_file, stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+            creationflags=creation_flags,
+            preexec_fn=preexec_fn
         )
         bot_process['process'] = process
         print(f"API: Bot started successfully with PID: {process.pid}")
@@ -40,36 +49,34 @@ def start_bot():
 
 @app.route('/api/stop', methods=['POST'])
 def stop_bot():
-    """Stops the trading bot process."""
+    """Stops the trading bot process, handling OS differences."""
     process = bot_process.get('process')
     if not process or process.poll() is not None:
         return jsonify({'status': 'error', 'message': 'Bot is not running.'}), 400
 
     print(f"API: Received request to stop the trading bot (PID: {process.pid})...")
     try:
-        # Terminate the process
-        process.terminate()
-        process.wait(timeout=5) # Wait for the process to terminate
+        # --- Cross-Platform Process Termination ---
+        if platform.system() == "Windows":
+            process.send_signal(signal.CTRL_BREAK_EVENT)
+        else: # For Linux (like Render) and MacOS
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        
+        process.wait(timeout=5)
         bot_process['process'] = None
         print("API: Bot stopped successfully.")
         return jsonify({'status': 'success', 'message': 'Bot stopped successfully.'})
-    except subprocess.TimeoutExpired:
-        print("API: Process did not terminate gracefully, killing.")
+    except Exception as e:
+        print(f"API: Error stopping bot - {e}, killing process.")
         process.kill()
         bot_process['process'] = None
-        return jsonify({'status': 'warning', 'message': 'Bot did not stop gracefully, it was killed.'})
-    except Exception as e:
-        print(f"API: Error stopping bot - {e}")
         return jsonify({'status': 'error', 'message': f'Failed to stop bot: {e}'}), 500
 
 @app.route('/api/status', methods=['GET'])
 def get_status():
     """Gets the current status of the bot."""
     process = bot_process.get('process')
-    if process and process.poll() is None:
-        status = 'ACTIVE'
-    else:
-        status = 'STOPPED'
+    status = 'ACTIVE' if process and process.poll() is None else 'STOPPED'
     return jsonify({'status': status})
 
 @app.route('/api/logs', methods=['GET'])
@@ -77,44 +84,42 @@ def get_logs():
     """Gets the last 50 lines from the bot's log file."""
     try:
         with open(LOG_FILE, 'r') as f:
-            lines = f.readlines()
-            last_50_lines = lines[-50:]
-        return jsonify({'logs': "".join(last_50_lines)})
-    except FileNotFoundError:
-        return jsonify({'logs': 'Log file not found. Start the bot to create it.'})
-    except Exception as e:
-        return jsonify({'logs': f'Error reading logs: {e}'})
+            lines = f.readlines()[-50:]
+        return jsonify({'logs': "".join(lines)})
+    except Exception:
+        return jsonify({'logs': 'Log file not yet available.'})
 
 @app.route('/api/run-setup', methods=['POST'])
 def run_setup():
-    """Runs the setup script and returns its output."""
+    """Runs the setup script."""
     print("API: Received request to run setup...")
     try:
-        # Use Popen to stream output if needed, but run is simpler for a complete process
         result = subprocess.run(
             ['python', 'main.py', '--action', 'setup'],
-            capture_output=True, text=True, check=True, timeout=600 # 10 minute timeout
+            capture_output=True, text=True, check=True, timeout=600
         )
-        print("API: Setup completed successfully.")
         return jsonify({'status': 'success', 'output': result.stdout})
     except subprocess.CalledProcessError as e:
-        print(f"API: Setup failed with an error - {e.stderr}")
-        return jsonify({'status': 'error', 'output': e.stderr}), 500
+        return jsonify({'status': 'error', 'output': e.stderr or e.stdout}), 500
     except Exception as e:
-        print(f"API: An unexpected error occurred during setup - {e}")
         return jsonify({'status': 'error', 'output': str(e)}), 500
 
-def cleanup_bot_process():
-    """Ensure the bot process is terminated when the server shuts down."""
-    process = bot_process.get('process')
-    if process and process.poll() is None:
-        print("API Server shutting down. Terminating bot process...")
-        process.terminate()
-        process.wait()
+def cleanup_on_exit():
+    """Ensures the bot process is terminated when the server shuts down."""
+    print("API Server shutting down. Cleaning up bot process...")
+    stop_bot()
 
 if __name__ == '__main__':
-    # Register the cleanup function to be called on server exit
-    atexit.register(cleanup_bot_process)
-    # Use debug=False for production, but True is fine for local dev
-    app.run(host='127.0.0.1', port=5001, debug=True)
+    atexit.register(cleanup_on_exit)
+    app.run(host='0.0.0.0', port=5001, debug=False) # Debug should be False for production
+```
+
+### Step 3: Push the Fix to GitHub
+
+After you have replaced the code in your `api_server.py` file, you need to commit and push this change to your GitHub repository.
+
+```bash
+git add api_server.py
+git commit -m "Fix: Make API server cross-platform compatible"
+git push
 
