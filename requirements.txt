@@ -1,4 +1,3 @@
---- Fully Pinned Dependencies for Production Stability (v2) ---
 #Flask and Server
 Flask==3.0.3
 Flask-Cors==4.0.1
