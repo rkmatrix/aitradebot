@@ -52,7 +52,9 @@ def stop_bot():
     """Stops the trading bot process, handling OS differences."""
     process = bot_process.get('process')
     if not process or process.poll() is not None:
-        return jsonify({'status': 'error', 'message': 'Bot is not running.'}), 400
+        # If the process is not tracked or already stopped, just confirm stopped status
+        bot_process['process'] = None
+        return jsonify({'status': 'success', 'message': 'Bot is already stopped.'})
 
     print(f"API: Received request to stop the trading bot (PID: {process.pid})...")
     try:
@@ -63,14 +65,14 @@ def stop_bot():
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
         
         process.wait(timeout=5)
-        bot_process['process'] = None
         print("API: Bot stopped successfully.")
-        return jsonify({'status': 'success', 'message': 'Bot stopped successfully.'})
     except Exception as e:
-        print(f"API: Error stopping bot - {e}, killing process.")
+        print(f"API: Error during graceful stop - {e}, killing process.")
         process.kill()
+    finally:
         bot_process['process'] = None
-        return jsonify({'status': 'error', 'message': f'Failed to stop bot: {e}'}), 500
+        
+    return jsonify({'status': 'success', 'message': 'Bot stopped successfully.'})
 
 @app.route('/api/status', methods=['GET'])
 def get_status():
@@ -111,15 +113,7 @@ def cleanup_on_exit():
 
 if __name__ == '__main__':
     atexit.register(cleanup_on_exit)
-    app.run(host='0.0.0.0', port=5001, debug=False) # Debug should be False for production
-```
-
-### Step 3: Push the Fix to GitHub
-
-After you have replaced the code in your `api_server.py` file, you need to commit and push this change to your GitHub repository.
-
-```bash
-git add api_server.py
-git commit -m "Fix: Make API server cross-platform compatible"
-git push
+    # The port is set by Render's environment variable, default to 10000 for local testing if needed
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 
