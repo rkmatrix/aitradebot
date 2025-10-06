@@ -19,7 +19,7 @@ threadpoolctl==3.5.0
 
 #Trading and Finance
 alpaca-py==0.42.2
-yfinance==0.2.40orPinning to the exact beta version known to be available for Python 3.11
+yfinance==0.2.40
 
 pandas-ta==0.3.14b
 
