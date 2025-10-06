@@ -1,24 +1,24 @@
 #Flask and Server
-Flask
-Flask-Cors
-gunicorn
+Flask==3.0.0
+Flask-Cors==4.0.0
+gunicorn==21.2.0
 
 #Data and ML Core
-pandas
-numpy
-scikit-learn
-xgboost
-joblib
+pandas==2.2.0
+numpy==1.26.4
+scikit-learn==1.4.1
+xgboost==2.0.3
+joblib==1.3.2
 
 #Trading and Finance
-alpaca-py
-yfinance
-pandas-ta
+alpaca-py==0.42.2
+yfinance==0.2.37
+pandas-ta==0.3.14b
 
 #AI and NLP
-transformers
-tokenizers
-sentencepiece
+transformers==4.38.2
+tokenizers==0.15.2
+sentencepiece==0.2.0
 
 #CRITICAL: Keep torch pinned to CPU version for build size and stability
 torch==2.2.1 --index-url https://download.pytorch.org/whl/cpu
