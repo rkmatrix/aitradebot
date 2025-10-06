@@ -1,27 +1,28 @@
 #Flask and Server
-Flask
-Flask-Cors
-gunicorn
+Flask==3.0.3
+Flask-Cors==4.0.1
+gunicorn==22.0.0
+Werkzeug==3.0.3
+itsdangerous==2.2.0
+Jinja2==3.1.4
+click==8.1.7
+blinker==1.8.2
 
 #Data and ML Core
-pandas
-numpy
-scikit-learn
-xgboost
-joblib
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+xgboost==2.0.3
+joblib==1.4.2
+scipy==1.13.1
+threadpoolctl==3.5.0
 
 #Trading and Finance
-alpaca-py
-yfinance
-pandas-ta
+alpaca-py==0.42.2
+yfinance==0.2.40orPinning to the exact beta version known to be available for Python 3.11
 
-#AI and NLP
-transformers
-tokenizers
-sentencepiece
+pandas-ta==0.3.14b
 
-#CRITICAL: Keep torch pinned to CPU version for build size and stability
-torch==2.2.1 --index-url https://download.pytorch.org/whl/cpu
-
-#Other Utilities
-requests
+ch.org/whl/ctransformers==4.42.3
+tokenizers==0.19.1
+sentencepiece==0.2.0
