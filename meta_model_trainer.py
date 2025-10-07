@@ -7,7 +7,6 @@ import config
 from stacking_model import StackingEnsemble
 from xgboost import XGBClassifier
 from sklearn.svm import SVC
-import os
 import boto3
 import io
 
@@ -29,7 +28,7 @@ def load_data():
 
 def upload_model_to_r2(model_object):
     """Serializes the model and uploads it to a Cloudflare R2 bucket."""
-    # Check for necessary R2 configuration
+    # Check for necessary R2 configuration from the config file
     if not all([config.R2_ENDPOINT_URL, config.R2_BUCKET_NAME, config.R2_ACCESS_KEY_ID, config.R2_SECRET_ACCESS_KEY]):
         print("\nFATAL: Cloudflare R2 environment variables are not fully set. Cannot upload model.")
         print("Setup failed because the model could not be uploaded to cloud storage.")
@@ -45,12 +44,12 @@ def upload_model_to_r2(model_object):
             region_name="auto" # Required for Cloudflare R2
         )
         
-        # Serialize the model to an in-memory buffer
+        # Serialize the model to an in-memory buffer to avoid writing to a temporary file
         with io.BytesIO() as buffer:
             joblib.dump(model_object, buffer)
-            buffer.seek(0) # Rewind the buffer to the beginning
+            buffer.seek(0) # Rewind the buffer to the beginning before uploading
             
-            # Upload the buffer content to R2
+            # Upload the buffer content directly to R2
             s3_client.upload_fileobj(buffer, config.R2_BUCKET_NAME, config.MODEL_FILENAME)
         
         print("Ultimate Model uploaded successfully to cloud storage.")
@@ -83,7 +82,7 @@ def run_training():
         ('svc', SVC(gamma='auto', probability=True, random_state=42))
     ]
 
-    # The "Master AI Strategist"
+    # The "Master AI Strategist" that learns from the experts
     meta_model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
 
     # --- Create and Train the Ultimate Model ---
@@ -102,8 +101,9 @@ def run_training():
     print(report)
 
     # --- Upload the Model to Cloud Storage ---
-    upload_model_to_r2(stacking_model)
-
+    if not upload_model_to_r2(stacking_model):
+        print("Setup failed because the model could not be uploaded to cloud storage.")
+    
     print("--- Ultimate AI Model Training Complete ---")
 
 if __name__ == '__main__':
