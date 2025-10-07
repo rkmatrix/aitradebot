@@ -82,15 +82,5 @@ def run_training():
 
 if __name__ == '__main__':
     run_training()
-```
-
-### Your Final Steps
-
-1.  **Replace the file** on your local machine with the new code above.
-2.  **Push the fix to GitHub.**
-    ```bash
-    git add meta_model_trainer.py
-    git commit -m "Fix: Remove optional cloud backup and rely on Render Disk"
-    git push
     
 
