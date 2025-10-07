@@ -8,6 +8,9 @@ def fetch_data(ticker, start_date, end_date):
     print(f"  Fetching data for {ticker} from {start_date} to {end_date}...")
     df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
     
+    if df.empty:
+        return pd.DataFrame() # Return empty DataFrame on failure
+
     # Clean column names immediately after download
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -18,7 +21,6 @@ def fetch_data(ticker, start_date, end_date):
 
 def save_to_db(df, ticker, conn):
     """Saves a DataFrame to the SQLite database with a standardized index name."""
-    # Standardize the index name to 'date' before saving.
     df.index.name = 'date'
     table_name = f"{ticker.upper()}_ohlcv"
     print(f"  Saving data to table '{table_name}'...")
@@ -33,7 +35,6 @@ def run_collection():
     START_DATE = "2018-01-01"
     END_DATE = pd.to_datetime('today').strftime('%Y-%m-%d')
     
-    # Use the TICKERS list from the central config file
     tickers_to_fetch = config.TICKERS + [config.MARKET_REGIME_TICKER]
     
     for ticker in set(tickers_to_fetch): # Use set to avoid duplicates
@@ -43,7 +44,7 @@ def run_collection():
             if not data.empty:
                 save_to_db(data, ticker, conn)
             else:
-                print(f"  No data fetched for {ticker}. Skipping.")
+                print(f"  WARNING: No data was returned for {ticker}. This could be a network issue or an invalid ticker. Skipping.")
         except Exception as e:
             print(f"  An error occurred while processing {ticker}: {e}")
             
