@@ -1,19 +1,32 @@
 import os
 
-API_KEY = os.getenv('ALPACA_API_KEY', 'PKYVIZ6Y0GGUCQHGI97V')
-SECRET_KEY = os.getenv('ALPACA_SECRET_KEY', '2vHaDIDPzfbtgn5aNVm5P3LEuhVzcRpd4CChOinS')
+# --- Securely load API Keys & Cloudflare R2 Config from Environment Variables ---
+# These MUST be set in the Render dashboard
+API_KEY = os.getenv('ALPACA_API_KEY')
+SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
 
-# --- Ticker Symbols ---
-# This is the single source of truth for the tickers you want to trade
-TICKERS = ['AAPL', 'TSLA', 'AMZN', 'NVDA', 'GOOG', 'MSFT']
+R2_ENDPOINT_URL = os.getenv('R2_ENDPOINT_URL')
+R2_BUCKET_NAME = os.getenv('R2_BUCKET_NAME')
+R2_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
+R2_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
 
-# The ticker used to determine the overall market trend (regime).
-# SPY (S&P 500 ETF) is the standard choice for the US market.
-MARKET_REGIME_TICKER = 'SPY'
-
-# --- File Paths ---
-# The name of the SQLite database file where price data will be stored.
-DB_FILE = "trading_data.db"
-
-# The name of the file where the trained AI model will be saved.
+# --- File Paths & Names ---
+# The model is no longer a local file path, but an object key in R2
 MODEL_FILENAME = "ultimate_trading_model.pkl"
+
+# --- Bot & Model Configuration ---
+TICKERS = ['AAPL', 'TSLA', 'AMZN', 'NVDA', 'GOOG', 'MSFT']
+MARKET_REGIME_TICKER = 'SPY'
+DB_FILE = "trading_data.db" 
+
+FEATURE_COLUMNS = [
+    'ma_crossover_signal', 'rsi_signal', 'bb_signal', 'macd_signal', 'market_regime'
+]
+TARGET_COLUMN = 'target'
+
+# Options Strategy Parameters (centralized for easy access)
+DAYS_TO_EXPIRATION_MIN = 30
+DAYS_TO_EXPIRATION_MAX = 45
+STRIKE_PRICE_OFFSET = 3
+POSITION_CLOSE_DTE = 5
+

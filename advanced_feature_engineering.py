@@ -59,7 +59,7 @@ def create_target(df):
 
 def run_feature_engineering():
     """Main function to run the feature engineering process."""
-    print("\n--- Starting Advanced Feature Engineering (No pandas-ta) ---")
+    print("\n--- Starting Advanced Feature Engineering ---")
     conn = sqlite3.connect(config.DB_FILE)
     
     try:

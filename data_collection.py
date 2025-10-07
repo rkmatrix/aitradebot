@@ -1,27 +1,24 @@
 import yfinance as yf
 import pandas as pd
 import sqlite3
-import config # Import settings from our config file
+import config # Import settings from our new config file
 
 def fetch_data(ticker, start_date, end_date):
-    """Fetches historical data from Yahoo Finance."""
+    """Fetches historical data from Yahoo Finance with robust column handling."""
     print(f"  Fetching data for {ticker} from {start_date} to {end_date}...")
     df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
     
-    # CRITICAL FIX: Handle cases where column names are tuples
-    cleaned_columns = []
-    for col in df.columns:
-        if isinstance(col, tuple):
-            cleaned_columns.append(col[0].lower().replace(' ', '_'))
-        else:
-            cleaned_columns.append(col.lower().replace(' ', '_'))
-    df.columns = cleaned_columns
+    # Clean column names immediately after download
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    df.columns = [col.lower().replace(' ', '_') for col in df.columns]
     
     df.dropna(inplace=True)
     return df
 
 def save_to_db(df, ticker, conn):
-    """Saves a DataFrame to the SQLite database."""
+    """Saves a DataFrame to the SQLite database with a standardized index name."""
+    # Standardize the index name to 'date' before saving.
     df.index.name = 'date'
     table_name = f"{ticker.upper()}_ohlcv"
     print(f"  Saving data to table '{table_name}'...")
@@ -36,7 +33,10 @@ def run_collection():
     START_DATE = "2018-01-01"
     END_DATE = pd.to_datetime('today').strftime('%Y-%m-%d')
     
-    for ticker in config.TICKERS:
+    # Use the TICKERS list from the central config file
+    tickers_to_fetch = config.TICKERS + [config.MARKET_REGIME_TICKER]
+    
+    for ticker in set(tickers_to_fetch): # Use set to avoid duplicates
         try:
             print(f"\nProcessing ticker: {ticker}")
             data = fetch_data(ticker, START_DATE, END_DATE)
