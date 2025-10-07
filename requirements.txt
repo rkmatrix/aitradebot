@@ -20,6 +20,7 @@ threadpoolctl==3.5.0
 #Trading and Finance
 alpaca-py==0.42.2
 yfinance==0.2.40
+pandas-ta==0.3.14b
 
 #AI and NLP
 transformers==4.42.3
