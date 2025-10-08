@@ -9,7 +9,7 @@ click==8.1.7
 blinker==1.8.2
 
 #Data and ML Core
-pandas==2.1.4
+pandas==2.2.0
 numpy==1.26.4
 scikit-learn==1.4.2
 xgboost==2.0.3
@@ -20,7 +20,6 @@ threadpoolctl==3.5.0
 #Trading and Finance
 alpaca-py==0.42.2
 yfinance==0.2.40
-pandas-ta==0.3.14b
 
 #AI and NLP
 transformers==4.42.3
