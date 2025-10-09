@@ -1,0 +1,18 @@
+/venv/
+/.venv/
+/env/
+/aitbot_env/  # Your virtual environment causing the error
+__pycache__/
+*.pyc
+
+# --- Data, Logs, and Models ---
+*.db
+*.sqlite
+*.csv
+*.pkl
+bot_log.txt
+
+# --- Node/Frontend Build Artifacts ---
+/node_modules
+/dist
+/build
